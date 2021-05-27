@@ -346,6 +346,7 @@ zsdoc/data
 
 my_settings.py
 *.csv
+db_uploader.py
 
 # Zunit tests' output
 /tests/_output/*
