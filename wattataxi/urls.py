@@ -18,4 +18,5 @@ from django.urls import path, include
 
 urlpatterns = [
     path('taxis', include('taxis.urls')),
+    path('users', include('users.urls')),
 ]
