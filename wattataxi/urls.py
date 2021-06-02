@@ -20,6 +20,7 @@ from django.urls import path, include
 urlpatterns = [
     path('taxis', include('taxis.urls')),
     path('users', include('users.urls')),
+    path('orders', include('orders.urls')),
 ]
 =======
 from django.urls import path, include
