@@ -1,13 +1,14 @@
 import random
 import json
+import datetime
 from json                       import JSONDecodeError
 
 from django.http                import JsonResponse
 from django.views               import View
-from django.db.models           import Count, Avg
+from django.db.models           import Count, Avg, Q
 from django.db.models.functions import Coalesce
 
-from taxis.models               import Location, TaxiDriver, DriverReview
+from taxis.models               import Location, TaxiDriver, DriverReview, Schedule, Course
 from users.models               import Coupon
 from decorators                 import validate_login
 
@@ -181,3 +182,72 @@ class ReviewView(View):
             return JsonResponse({'message':'invalid_input'}, status=400)
         except ValueError:
             return JsonResponse({'message': 'invalid_input'}, status=400)
+
+class TaxiListView(View):
+    def get(self, request):
+        departure_location_name  = request.GET.get('departure_location_name', None)
+        arrival_location_name    = request.GET.get('arrival_location_name', None)
+        seat_type                = request.GET.get('seat_type')
+        seat_remain              = request.GET.get('seat_remain')
+        departure_date_string    = request.GET.get('departure_date')
+    
+        departure_time           = request.GET.get('departure_time', '1900-01-01 23:00')
+        price                    = request.GET.get('price', 60000)
+        taxi_company             = request.GET.getlist('taxi_company', ['Dasul Taxi', 'Taxi Choi-gging', 'Art Transportation', 'Lama 운수', 'DaMo taxi', 'Muy bien Trans'])
+        sort                     = request.GET.get('sort', '-price')
+
+        sort_list = {
+            'dep_time'      : '-course__departure_time',
+            'price'         : '-price'
+        }
+        sort_string    = sort_list[sort]
+
+        departure_date = datetime.datetime.strptime(departure_date_string, "%Y-%m-%d")
+
+        courses = Course.objects.filter(
+            Q(departure_location__name=departure_location_name) 
+            & Q(arrival_location__name=arrival_location_name))
+
+        schedules = Schedule.objects.filter(
+              Q(date=departure_date) 
+            & Q(seat_type__name=seat_type)
+            & Q(course_id__in=[course.id for course in courses]) 
+            & Q(seat_remain__gte = seat_remain)
+            & Q(price__lte=price)
+            & Q(course__taxi_company__name__in = taxi_company)
+            & Q(course__departure_time__lte = departure_time)).order_by(sort_string)
+
+        total_result = []
+
+        for schedule in schedules:
+            result = {
+                'id'   : schedule.id,
+                'price'       : schedule.price,
+                'seat_remain' : schedule.seat_remain,
+                'date'        : schedule.date,
+                'courses' : {
+                    'departure_time'          : schedule.course.departure_time,
+                    'arrival_time'            : schedule.course.arrival_time,
+                    'taxi_code'               : schedule.course.taxi_code,
+                    'arrival_location_id'     : schedule.course.arrival_location.id,
+                    'arrival_location_name'   : schedule.course.arrival_location.name,
+                    'arrival_location_code'   : schedule.course.arrival_location.location_code,
+                    'departure_location_id'   : schedule.course.departure_location.id,
+                    'departure_location_name' : schedule.course.departure_location.name,
+                    'departure_location_code' : schedule.course.departure_location.location_code,
+                    'taxi_company'            : schedule.course.taxi_company.name,
+                    'taxi_company_url'        : schedule.course.taxi_company.logo_url
+                },
+                'seat_type' : {
+                    'seat_name' : schedule.seat_type.name,
+                    'sale_rate' : schedule.seat_type.sale_rate
+                    },
+                'taxi_driver' : {
+                    'taxi_driver_name' : schedule.taxi_driver.name,
+                    'taxi_company'     : schedule.taxi_driver.taxi_company.name,
+                    'profile_url'      : schedule.taxi_driver.profile_url,
+                    'introduction'     : schedule.taxi_driver.introduction
+                    }
+            }
+            total_result.append(result)
+        return JsonResponse({"Message" : total_result}, status = 200)

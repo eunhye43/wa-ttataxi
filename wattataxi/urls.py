@@ -13,6 +13,7 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+<<<<<<< HEAD
 
 from django.urls import path, include
 
@@ -20,3 +21,10 @@ urlpatterns = [
     path('taxis', include('taxis.urls')),
     path('users', include('users.urls')),
 ]
+=======
+from django.urls import path, include
+
+urlpatterns = [
+    path("taxis", include("taxis.urls")),
+    ]
+>>>>>>> cd1c762 (ADD: 검색 및 필터링, 정렬 기능 구현 완료)

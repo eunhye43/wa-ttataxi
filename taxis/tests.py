@@ -3,7 +3,7 @@ import bcrypt
 
 from django.test  import TestCase, Client
 
-from taxis.models import Location, TaxiDriver, TaxiCompany, DriverReview
+from taxis.models import Location, TaxiDriver, TaxiCompany, DriverReview, Course, SeatType, Schedule
 from users.models import User
 
 class LocationListTest(TestCase):
@@ -406,5 +406,105 @@ class ReviewTest(TestCase):
                     'message': 'invalid_input'
                 }
         )
+class TaxilistTest(TestCase):
+    def setUp(self):
+        Location.objects.create(
+            id = 1,
+            name = "망원", 
+            longitude = 0,
+            latitude = 0,
+            location_code = "MWN",
+            image_url = "dasfkdasjf444"
 
+        )
+        Location.objects.create(
+            id = 4,
+            name = "선유도",
+            longitude = 0,
+            latitude = 0,
+            location_code = "SUD",
+            image_url = '333safsfsa'
 
+        )
+
+        TaxiCompany.objects.create(
+            id = 1,
+            name = "Dasul Taxi",
+            logo_url = 'https://younggeon-myawsbucket.s3.ap-northeast-2.amazonaws.com/logo_dasul.png'
+        )
+
+        Course.objects.create(
+            id=1,
+            departure_time="1990-01-01 22:00",
+            arrival_time="1990-01-01 23:00",
+            taxi_code="DT030", 
+            arrival_location_id=4, 
+            departure_location_id=1, 
+            taxi_company_id=1
+            ),
+
+        SeatType.objects.create(
+            id = 1, 
+            name="비즈니스석", 
+            sale_rate=2.0
+            ),
+
+        TaxiDriver.objects.create(
+            id=1, 
+            name="이다슬", 
+            profile_url="https://trello-attachments.s3.amazonaws.com/60ab36332dad093c8d65aaca/60ae0bf22e177364dda07287/ead58f19c51327bfb4108d83f8024cce/image.jpeg", 
+            introduction="와따택시에 사랑 한스푼.. 웃음 두 스푼.. 행복 세스푼.. 더해 손님들의 귀갓길이 행복이 가득허길 바랍니다. 만수무강 하시기를.", 
+            taxi_company_id=1
+            ),
+
+        Schedule.objects.create(
+            id=1, 
+            price=30000.00, 
+            seat_remain=9, 
+            date="2021-08-27", 
+            course_id=1, 
+            seat_type_id=1, 
+            taxi_driver_id=1
+        )
+    def tearDown(self):
+        Schedule.objects.all().delete()
+        TaxiDriver.objects.all().delete()
+        SeatType.objects.all().delete()
+        Course.objects.all().delete()
+
+    def test_productlist_get_success(self):
+        client = Client()
+        # print(Schedule.objects.get(id=1).course.departure_location.name)
+        response = client.get('/taxis?departure_location_name=망원&arrival_location_name=선유도&seat_type=비즈니스석&departure_date=2021-08-27&arrival_date=2021-08-27&price=30000&taxi_company=Dasul Taxi&sort=price&seat_remain=9&departure_time=1900-01-01 22:00')
+        self.assertEqual(response.json(), {
+            'Message' : [{
+                'id'   : 1,
+                'price'       : 30000,
+                'seat_remain' : 9,
+                'date'        : "2021-08-27",
+                'courses' : {
+                    'departure_time'          : "1900-01-01 22:00",
+                    'arrival_time'            : "1990-01-01 23:00",
+                    'taxi_code'               : "DT001",
+                    'arrival_location_id'     : 4,
+                    'arrival_location_name'   : "선유도",
+                    'arrival_location_code'   : "SUD",
+                    'departure_location_id'   : 1,
+                    'departure_location_name' : "망원",
+                    'departure_location_code' : "MWN",
+                    'taxi_company'            : "Dasul Taxi",
+                    'taxi_company_url'        : "https://younggeon-myawsbucket.s3.ap-northeast-2.amazonaws.com/logo_dasul.png"
+                },
+                'seat_type' : {
+                    'seat_name' : "비즈니스석",
+                    'sale_rate' : "2.0"
+                    },
+                'taxi_driver' : {
+                    'taxi_driver_name' : "이다슬",
+                    'taxi_company'     : "Dasul Taxi",
+                    'profile_url'      : "https://trello-attachments.s3.amazonaws.com/60ab36332dad093c8d65aaca/60ae0bf22e177364dda07287/ead58f19c51327bfb4108d83f8024cce/image.jpeg",
+                    'introduction'     : "등으로 짊어지면 짐이 되지만 가슴으로 안으면 사랑이 된다고 합니다.. 비가오나 눈이 오나 다술택시는 멈추지 않습니다. 언제든 찾아주십쇼. 감사합니다."
+                    }
+        }]
+    })
+        self.assertEqual(response.status_code, 200)
