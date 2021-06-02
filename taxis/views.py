@@ -1,4 +1,5 @@
 import random
+import json
 from json                       import JSONDecodeError
 
 from django.http                import JsonResponse
@@ -8,6 +9,7 @@ from django.db.models.functions import Coalesce
 
 from taxis.models               import Location, TaxiDriver, DriverReview
 from users.models               import Coupon
+from decorators                 import validate_login
 
 class LocationListView(View):
     def get(self, request):
@@ -105,3 +107,77 @@ class CouponListView(View):
                 } for coupon in coupons ]
         return JsonResponse({'banner': banners}, status=200)
 
+class ReviewView(View):
+    def get(self, request):
+        try:
+            driver_id = request.GET.get('driver_id', None)
+
+            reviews = DriverReview.objects.filter(taxi_driver_id=driver_id).select_related('user').order_by('-id')
+
+            results = [
+                    {
+                        "review_id"        : review.id,
+                        "user_name"        : review.user.name,
+                        "user_profile_url" : review.user.profile_url if review.user.profile_url else "https://image.flaticon.com/icons/png/512/1808/1808120.png",
+                        "rating"           : review.rating,
+                        "review"           : review.review
+                    } for review in reviews ]
+
+            return JsonResponse({'message': 'success', 'reviews': results}, status=200)
+        except JSONDecodeError:
+            return JsonResponse({'message': 'invalid_input'}, status=400)
+        except DriverReview.DoesNotExist:
+            return JsonResponse({'message': 'invalid_driver_id'}, status=400)
+        except ValueError:
+            return JsonResponse({'message': 'invalid_input'}, status=400)
+
+    @validate_login
+    def post(self, request):
+        try:
+            data      = json.loads(request.body)
+            rating    = data.get('rating', None)
+            text      = data.get('text', None)
+            driver_id = data.get('driver_id', None)
+            user      = request.user
+
+            if not driver_id or not text or not rating:
+                return JsonResponse({'message': 'no_input'}, status=400)
+
+            if not TaxiDriver.objects.filter(id=driver_id).exists():
+                return JsonResponse({'message': 'invalid_input'}, status=400)
+
+            driver_review = DriverReview.objects.create(
+                    taxi_driver_id = driver_id,
+                    user           = user,
+                    rating         = rating,
+                    review         = text
+                    )
+
+            return JsonResponse({'message': 'success'}, status=201)
+        except KeyError:
+            return JsonResponse({'message':'invalid_input'}, status=400)
+        except JSONDecodeError:
+            return JsonResponse({'message':'invalid_input'}, status=400)
+        except ValueError:
+            return JsonResponse({'message': 'invalid_input'}, status=400)
+
+    @validate_login
+    def delete(self, request, review_id):
+        try:
+            review    = DriverReview.objects.get(id=review_id)
+            user      = request.user
+
+            if review.user != user:
+                return JsonResponse({'message':'invalid_user'}, status=401)
+
+            review.delete()
+
+            return JsonResponse({'message':'success'}, status=201)
+        except KeyError:
+            return JsonResponse({'message':'invalid_input'}, status=400)
+        except JSONDecodeError:
+            return JsonResponse({'message':'invalid_input'}, status=400)
+        except DriverReview.DoesNotExist:
+            return JsonResponse({'message':'invalid_input'}, status=400)
+        except ValueError:
+            return JsonResponse({'message': 'invalid_input'}, status=400)
